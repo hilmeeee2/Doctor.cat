@@ -3,6 +3,7 @@ import { Tajawal } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Navbar from "@/components/Navbar";
 
 const tajawal = Tajawal({
   variable: "--font-tajawal",
@@ -24,8 +25,11 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" className={`${tajawal.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
+          <Navbar />
           <ProtectedRoute>
-            {children}
+            <div className="flex-1">
+              {children}
+            </div>
           </ProtectedRoute>
         </AuthProvider>
       </body>
