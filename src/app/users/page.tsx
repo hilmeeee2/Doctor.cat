@@ -16,18 +16,17 @@ interface UserData {
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Query to only get non-deleted users or we can get all and filter.
       const q = query(collection(db, "Users"), where("isDeleted", "==", false));
       const querySnapshot = await getDocs(q);
-      const fetchedUsers: UserData[] = [];
+      const fetchedUsers: any[] = [];
       querySnapshot.forEach((docSnap) => {
-        fetchedUsers.push({ uid: docSnap.id, ...docSnap.data() } as UserData);
+        fetchedUsers.push({ uid: docSnap.id, ...docSnap.data() });
       });
       setUsers(fetchedUsers);
     } catch (error) {
@@ -41,7 +40,7 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  const toggleFeature = async (uid: string, feature: "isChatEnabled" | "isAdviceEnabled", currentValue: boolean) => {
+  const toggleFeature = async (uid: string, feature: string, currentValue: boolean) => {
     try {
       const userRef = doc(db, "Users", uid);
       await updateDoc(userRef, {
@@ -68,10 +67,26 @@ export default function UsersPage() {
     }
   };
 
+  // Get dynamic feature columns (any key starting with 'is' except 'isDeleted')
+  const getFeatureColumns = () => {
+    if (users.length === 0) return ["isChatEnabled", "isAdviceEnabled"]; // defaults
+    const firstUser = users[0];
+    return Object.keys(firstUser).filter(key => key.startsWith('is') && key !== 'isDeleted' && typeof firstUser[key] === 'boolean');
+  };
+
+  const featureColumns = getFeatureColumns();
+
   return (
     <div className="container mx-auto p-6 animate-fade-in">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-[var(--color-primary)]">إدارة المستخدمين</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold text-[var(--color-primary)]">إدارة المستخدمين</h2>
+          {!loading && (
+            <span className="bg-green-100 text-green-800 font-bold px-3 py-1 rounded-full text-sm">
+              الإجمالي: {users.length} مستخدم
+            </span>
+          )}
+        </div>
         <button onClick={fetchUsers} className="bg-[var(--color-secondary)] text-[var(--color-primary)] font-semibold px-4 py-2 rounded shadow-sm hover:bg-green-100 transition-colors">
           تحديث البيانات
         </button>
@@ -84,19 +99,20 @@ export default function UsersPage() {
               <tr>
                 <th className="px-6 py-4 font-bold">الاسم</th>
                 <th className="px-6 py-4 font-bold">رقم الهاتف</th>
-                <th className="px-6 py-4 font-bold">صلاحية الدردشة</th>
-                <th className="px-6 py-4 font-bold">صلاحية النصائح</th>
+                {featureColumns.map(feature => (
+                  <th key={feature} className="px-6 py-4 font-bold">حالة {feature.replace('is', '').replace('Enabled', '')}</th>
+                ))}
                 <th className="px-6 py-4 font-bold">إجراءات</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">جاري تحميل المستخدمين...</td>
+                  <td colSpan={3 + featureColumns.length} className="px-6 py-8 text-center text-gray-500">جاري تحميل المستخدمين...</td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">لا يوجد مستخدمين مسجلين بعد.</td>
+                  <td colSpan={3 + featureColumns.length} className="px-6 py-8 text-center text-gray-500">لا يوجد مستخدمين مسجلين بعد.</td>
                 </tr>
               ) : (
                 users.map((user) => (
@@ -106,22 +122,16 @@ export default function UsersPage() {
                       {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
                     </td>
                     <td className="px-6 py-4" dir="ltr">{user.phoneNumber || "-"}</td>
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => toggleFeature(user.uid, "isChatEnabled", user.isChatEnabled)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${user.isChatEnabled ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
-                      >
-                        {user.isChatEnabled ? 'مفعل' : 'معطل'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => toggleFeature(user.uid, "isAdviceEnabled", user.isAdviceEnabled)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${user.isAdviceEnabled ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
-                      >
-                        {user.isAdviceEnabled ? 'مفعل' : 'معطل'}
-                      </button>
-                    </td>
+                    {featureColumns.map(feature => (
+                      <td key={feature} className="px-6 py-4">
+                        <button 
+                          onClick={() => toggleFeature(user.uid, feature, user[feature])}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${user[feature] ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
+                        >
+                          {user[feature] ? 'مفعل' : 'معطل'}
+                        </button>
+                      </td>
+                    ))}
                     <td className="px-6 py-4">
                       <button 
                         onClick={() => deleteUser(user.uid)}
